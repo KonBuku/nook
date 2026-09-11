@@ -1,0 +1,15 @@
+# The Rust version, written down once so CI and a laptop agree.
+#
+# Without this, CI asks rustup for `stable` and gets whatever shipped most
+# recently, while a contributor's machine has whatever they last updated to.
+# That is fine until clippy is a gate: every Rust release adds lints, so a
+# newer toolchain fails a build nobody touched, and the person who pushed sees
+# a red tick on a commit that changed a README. It happened on the first run of
+# this workflow — 1.98 flagged a `vec!` in a test that 1.88 had been happy with
+# for months.
+#
+# Bump this deliberately, with the clippy fixes the bump asks for in the same
+# commit.
+[toolchain]
+channel = "1.98"
+components = ["clippy"]

@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The notch window's own permissions. Deliberately narrow: everything that touches the filesystem, the network or Win32 happens in Rust, so the webview needs nothing but its own commands and events.",
+  "windows": ["notch"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-set-ignore-cursor-events",
+    "autostart:default",
+    "global-shortcut:default"
+  ]
+}

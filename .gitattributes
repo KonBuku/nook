@@ -1,0 +1,9 @@
+# One line ending in the repository, whatever the working copy uses. Without
+# this a Windows checkout rewrites every file on the way in and the first
+# commit from a Mac shows the whole tree as changed.
+* text=auto eol=lf
+
+# Binary, and never to be line-ending-converted or diffed as text.
+*.png binary
+*.ico binary
+*.woff2 binary

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nook",
+  "version": "0.1.0",
+  "identifier": "dev.nook.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "notch",
+        "title": "Nook",
+        "width": 300,
+        "height": 560,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    },
+    "shortDescription": "Claude usage and live sessions, on the edge of your screen",
+    "longDescription": "Nook pins a small black notch to the left edge of your screen. It shows how much of your Claude limit you have burned, and whether Claude Code is still working, waiting on you, or done. Click a session to jump to its terminal."
+  }
+}

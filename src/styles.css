@@ -1,0 +1,323 @@
+/*
+ * The window is a transparent slab pinned to the left edge of the screen. Only
+ * the notch inside it is ever painted, and only the notch ever receives a
+ * pointer — everything here exists to keep the rest of the slab genuinely
+ * absent rather than merely invisible.
+ */
+
+:root {
+  /* Sampled from the design frame, not invented. Mirrors `design/palette.ts`;
+     the two are quoted together so a change to one is a change to both. */
+  --surface: #000000;
+  --ring-track: #303030;
+  --bar-track: #2d2d2d;
+  /* Claude's own colour, sampled from the terminal. See design/palette.ts. */
+  --claude: #d77757;
+  --ample: #00ff88;
+  --watch: #f2ff00;
+  --critical: #ff3f00;
+  --text-primary: #ffffff;
+  --text-secondary: #808080;
+
+  /*
+   * SF Pro is what the frame was drawn in, and Windows does not have it. Inter
+   * is the closest widely-installed face — near-identical proportions and the
+   * same open apertures — so it leads, with Segoe UI Variable behind it as the
+   * face every Windows 11 machine already has. See the README for installing
+   * Inter if you want the frame's exact texture.
+   */
+  --font: "Inter", "Inter Variable", "Segoe UI Variable Display", "Segoe UI",
+    system-ui, -apple-system, sans-serif;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* The window is transparent; anything painted here would be a grey rectangle
+     hanging off the edge of the screen. */
+  background: transparent;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  /* Nothing in a notch is selectable or draggable, and both gestures leave
+     visible artefacts on a surface with no window behind it. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+/*
+ * The notch itself: pinned to the left edge, and moved down to the anchor with
+ * a transform rather than by `top`, so opening it does not put a layout pass on
+ * every frame.
+ *
+ * No `will-change`. Promoting this to its own compositing layer for the life of
+ * the app costs the text inside it subpixel antialiasing, which is most of why
+ * the panel looked soft — and the transform is animated by a spring that
+ * already promotes it for the few hundred milliseconds it is moving.
+ */
+.chrome {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.silhouette {
+  position: absolute;
+  inset: 0;
+  display: block;
+  /* A soft edge against a bright desktop, so the black reads as an object on
+     the screen rather than a hole in it. Windows draws no shadow for us: the
+     window is undecorated and transparent. */
+  filter: drop-shadow(0 2px 12px rgb(0 0 0 / 0.45));
+}
+
+.content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── The closed notch ─────────────────────────────────────────────────────── */
+
+/*
+ * No flex `gap` here, deliberately. The chip animates its own top margin as it
+ * appears, and a gap would be added on top of that — which is exactly how the
+ * chip ended up hanging below the notch's own silhouette.
+ */
+.closed {
+  align-items: center;
+  justify-content: center;
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * The session chip: Claude's mark in the colour of the most urgent state, and
+ * how many sessions there are. It is the closed notch's whole answer to "is
+ * anything running", so it says the one thing worth knowing and nothing else.
+ *
+ * The count takes the mark's colour rather than the secondary grey, and enough
+ * weight to hold its own at body size. Grey and regular, it read as a stray
+ * digit sitting next to the mark instead of part of it — which is what made
+ * the chip look cramped rather than small.
+ */
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+/* ── The open panel ───────────────────────────────────────────────────────── */
+
+.panel {
+  flex: 1;
+  min-height: 0; /* so the session list, not the panel, is what scrolls */
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.panel-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.panel-title h1 {
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.panel-note {
+  color: var(--text-secondary);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * A label on the left and a quieter value on the right — the row shape the
+ * design frame uses throughout.
+ *
+ * Centred, not baseline-aligned. A row carrying an inline SVG sits that SVG on
+ * the baseline, which leaves its own descender space underneath and makes the
+ * line taller than its `line-height` — by about two pixels a row. The panel's
+ * height is budgeted in line boxes, so two pixels a row is what made a list
+ * with room to spare scroll anyway.
+ */
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.split-row > :first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.split-row > .spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.split-row .trailing {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.bar-track,
+.bar-fill {
+  border-radius: 999px;
+}
+
+.bar-track {
+  background: var(--bar-track);
+  width: 100%;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+}
+
+.status-message {
+  color: var(--text-secondary);
+  line-height: 1.25;
+}
+
+.hairline {
+  background: var(--ring-track);
+  flex: none;
+}
+
+/* ── The session list ─────────────────────────────────────────────────────── */
+
+/*
+ * Scrolls without a scrollbar, and fades at both ends instead.
+ *
+ * A visible scrollbar on a 226px black panel is a grey stripe down the side of
+ * a shape whose whole point is a clean silhouette. The mask says the same
+ * thing more quietly: content continuing past the edge, rather than a control
+ * to drag. The fades are only drawn on the end that actually has more — a
+ * gradient at the top of a list already at the top reads as a rendering fault.
+ */
+.session-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* No `mask-image` here — see the note in SessionList.tsx. A mask would
+     composite this subtree and take the text's subpixel antialiasing with it. */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.session-list::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * The row fills the list, and the list is the one thing that was widened — see
+ * `sessionRowBleed`. Widening both, each with its own negative margin, is what
+ * left the highlight hanging off the edge of the panel.
+ */
+.session-row {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-radius: var(--row-radius);
+  padding: var(--row-pad-y) var(--row-pad-x);
+  transition: background-color 140ms ease-out;
+}
+
+.session-row.clickable {
+  cursor: pointer;
+}
+
+.session-row.clickable:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.session-row.clickable:active {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.session-row:focus-visible {
+  outline: 1.5px solid var(--text-secondary);
+  outline-offset: -1.5px;
+}
+
+.session-name {
+  font-weight: 500;
+}
+
+.session-detail {
+  color: var(--text-secondary);
+}
+
+/*
+ * The waiting mark's slow breath. Blocked on you is the one state that should
+ * catch the eye without moving — a spin there would say "working".
+ */
+@keyframes nook-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Springs are handled in JS; this covers the CSS transitions above. */
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}

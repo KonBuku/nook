@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run's answer worthless.
+# A cancelled run reports as a failure in the log; it is not one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Windows, because half of what this checks is Win32. The Rust tests call
+    # GetMonitorInfoW, walk the process table and resolve a console's window;
+    # none of that means anything on a Linux runner.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # No version pinned in either of the next two: package.json's
+      # `packageManager` field and src-tauri/rust-toolchain.toml are where the
+      # versions live. Naming one twice is how CI ends up resolving a different
+      # toolchain than anybody runs locally — which is exactly how this
+      # workflow failed its own first run.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Frontend tests
+        run: pnpm test
+
+      - name: Frontend build
+        run: pnpm build
+
+      # Installs whatever rust-toolchain.toml asks for, clippy included. With
+      # no toolchain named, rustup reads the file — `rustup show` would do the
+      # same install as a side effect, which rustup now warns is going away.
+      - name: Rust toolchain
+        working-directory: src-tauri
+        run: rustup toolchain install
+
+      # The Rust half is the slow one by a wide margin, and almost all of it is
+      # dependencies that do not change between runs.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      # Deliberately not here: `cargo fmt --check`. This codebase is hand-laid
+      # out — the comments carry most of its weight and rustfmt breaks several
+      # of them across lines that read worse — so formatting is not a gate.
