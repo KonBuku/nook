@@ -1,6 +1,7 @@
 # The screenshots
 
-`docs/images/*.png` are generated, not photographed. Re-take them with:
+`docs/images/*.png` — the README's banner included — are generated, not
+photographed. Re-take them with:
 
 ```sh
 pnpm dev      # in one terminal
@@ -16,7 +17,10 @@ diff on a PNG rather than as a new picture nobody can compare to the last one.
 `shots.html` is a second Vite entry — the production build has one entry,
 `index.html`, and never sees it. It renders the **real** components:
 `NotchShell`, `OpenContent`, `ClosedContent`, `SessionList`, and the real
-`useShapes`, at the real `WINDOW_HEIGHT`. Only two things are substituted:
+`useShapes`, at the real `WINDOW_HEIGHT`. The banner is the same closed notch
+at the same size with a wordmark beside it, rather than a logo drawn separately
+— so the thing at the top of the README cannot come to show something the app
+does not. Only two things are substituted:
 
 - **`fixtures.ts`** — the readings and sessions. Invented, so no screenshot puts
   whoever took it on display: their projects, their folder names, how much of
@@ -54,7 +58,7 @@ before the shutter.
 list — `panel` and `states` — land a sub-pixel apart from run to run, because
 Motion's layout projection measures the rows each time. The pictures are the
 same; the PNGs are not. So a `git diff` on those two will show a change even
-when nothing about the UI moved. `closed` and `pill` are stable.
+when nothing about the UI moved. `banner`, `closed` and `pill` are stable.
 
 ## Frame widths
 

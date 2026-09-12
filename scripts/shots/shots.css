@@ -53,3 +53,49 @@ body[data-scene="states"] {
   background: var(--surface);
   box-shadow: 0 3px 18px rgb(0 0 0 / 0.34);
 }
+
+/* ── The README's banner ──────────────────────────────────────────────────── */
+
+/*
+ * A darker ground than the screenshots, so the header reads as a header rather
+ * than as a fifth capture, with a terracotta wash where the notch sits — the
+ * app's one colour, doing the job the mid grey does elsewhere: giving pure
+ * black something to be an object against.
+ */
+body[data-scene="banner"] #root {
+  display: block;
+}
+
+.banner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(52% 118% at 9% 50%, rgb(215 119 87 / 0.17), transparent 72%),
+    linear-gradient(112deg, #3f4653 0%, #272c35 52%, #15181e 100%);
+}
+
+/* The slab is taller than the banner, so it hangs off both ends and is centred
+   on the notch inside it rather than resized around it. */
+.banner .edge {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.wordmark {
+  position: absolute;
+  left: 150px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 76px;
+  font-weight: 700;
+  /* Tracked out, because a four-letter word set tight at this size reads as a
+     lump rather than as a name. The trailing space the last letter gets is
+     left in: trimming it would shift the word off the centre it is set on. */
+  letter-spacing: 0.15em;
+  line-height: 1;
+  color: var(--text-primary);
+}

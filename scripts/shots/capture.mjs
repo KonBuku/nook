@@ -49,6 +49,7 @@ if (!CHROME) {
 const MIN_WIDTH = 500;
 
 const scenes = [
+  { name: "banner", width: 560, height: 220 },
   { name: "panel", width: 500, height: 520 },
   { name: "closed", width: 500, height: 360 },
   { name: "pill", width: 500, height: 360 },

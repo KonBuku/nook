@@ -119,7 +119,36 @@ function States() {
   );
 }
 
+/**
+ * The README's banner.
+ *
+ * The real closed notch, at its real size, against a strip of screen — which
+ * is the whole claim the app makes, so the banner is that rather than a drawing
+ * of a logo. It is deliberately small in the frame: a notch that filled a
+ * banner would be a different object from the one that ships.
+ *
+ * The backdrop is darker than the other captures' and carries a terracotta
+ * wash behind the shape. Same reasoning as `shots.css` — the notch is pure
+ * black, and it needs something to be an object against — but a header reads
+ * as a header rather than as a fifth screenshot.
+ *
+ * The name and nothing else. The README's own line under it says what the app
+ * does, in text a screen reader and a search engine can both have — a sentence
+ * baked into a PNG is a sentence only some readers get.
+ */
+function Banner() {
+  return (
+    <div className="banner">
+      <div className="edge" style={{ height: WINDOW_HEIGHT }}>
+        <Notch open={false} sessionList={quietSessions} />
+      </div>
+      <h1 className="wordmark">NOOK</h1>
+    </div>
+  );
+}
+
 const scenes = {
+  banner: () => <Banner />,
   panel: () => (
     <Edge>
       <Notch open sessionList={sessions} />

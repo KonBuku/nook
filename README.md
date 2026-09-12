@@ -1,20 +1,17 @@
-<h1 align="center">Nook</h1>
+<div align="center">
 
-<p align="center">
-  Claude usage and live Claude Code sessions, on the edge of your screen.
-</p>
+![Nook](docs/images/banner.png)
 
-<p align="center">
-  <a href="https://github.com/KonBuku/nook/actions/workflows/ci.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/KonBuku/nook/ci.yml?branch=main&amp;label=build&amp;labelColor=1c1c1c&amp;color=d77757"></a>
-  <a href="https://github.com/KonBuku/nook/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/KonBuku/nook?label=release&amp;labelColor=1c1c1c&amp;color=d77757"></a>
-  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/KonBuku/nook?labelColor=1c1c1c&amp;color=d77757"></a>
-  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/windows-10%20%7C%2011-d77757?labelColor=1c1c1c">
-  <a href="https://github.com/KonBuku/nook/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/KonBuku/nook?labelColor=1c1c1c&amp;color=d77757"></a>
-</p>
+[![CI](https://github.com/KonBuku/nook/actions/workflows/ci.yml/badge.svg)](https://github.com/KonBuku/nook/actions/workflows/ci.yml)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-black)
+![Rust](https://img.shields.io/badge/rust-1.98-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-<p align="center">
-  <img src="docs/images/panel.png" alt="The notch opened into a panel: three limit windows with their bars and reset times, then four live Claude Code sessions — one working, one waiting, one just finished, one idle." width="640">
-</p>
+**Claude usage and live Claude Code sessions, on the edge of your screen.**
+
+<img src="docs/images/panel.png" alt="The notch opened into a panel: three limit windows with their bars and reset times, then four live Claude Code sessions — one working, one waiting, one just finished, one idle." width="640">
+
+</div>
 
 Nook pins a small black notch to the left edge of your screen. Closed, it is a
 ring and a number: how much of your Claude limit is gone. Reach for it and it
@@ -22,10 +19,17 @@ unfolds into every limit window and every live Claude Code session by name.
 Click a session and its terminal comes to the front.
 
 It takes no focus, and everywhere the notch is not, the window is genuinely not
-there — clicks pass straight through to whatever is behind it.
+there — clicks pass straight through to whatever is behind it. Start a game
+full-screen and it stands down completely until you are back on the desktop.
 
 **Windows 10 and 11.** It reads the credential Claude Code already saved, so
 there is nothing to sign in to: run `claude` once and the ring fills in.
+
+## Install
+
+Download the installer from the [**latest release**](../../releases/latest) and
+run it. It installs for the current user only, so it needs no administrator
+prompt. There is nothing to configure and nothing to sign in to.
 
 <table>
 <tr>
@@ -65,29 +69,6 @@ Clicking a session brings its terminal to the front — Windows Terminal, VS
 Code, a bare console, whatever it is running in. A session with no window to
 raise says so and does not pretend to be a button.
 
-## Install
-
-Download the installer from the [releases page](../../releases) and run it. It
-installs for the current user only, so it needs no administrator prompt.
-
-Or build it:
-
-```sh
-pnpm install
-pnpm start     # a development build, with the webview's devtools available
-pnpm release   # an installer, in src-tauri/target/release/bundle/
-```
-
-You need [Node](https://nodejs.org) 20+, [pnpm](https://pnpm.io) and a
-[Rust](https://rustup.rs) toolchain. WebView2 ships with Windows 11 and with
-every up-to-date Windows 10.
-
-**On the typeface.** The design frame this is drawn from is set in SF Pro, which
-Windows does not have. Nook asks for [Inter](https://rsms.me/inter/) first and
-falls back to Segoe UI Variable, which every Windows 11 machine already has.
-Installing Inter gets you the frame's exact texture; not installing it costs you
-nothing but a slightly different `g`.
-
 ## Settings
 
 Right-click the tray icon and choose **Edit settings…**, or open
@@ -117,10 +98,29 @@ in a hand-edited file should not be what stops the app starting.
 `"restingStyle": "pill"` folds the notch away to that handle. It still opens
 into the same panel — it just stops showing you a number you did not ask for.
 
+## Build it yourself
+
+```sh
+pnpm install
+pnpm start     # a development build, with the webview's devtools available
+pnpm release   # an installer, in src-tauri/target/release/bundle/
+```
+
+You need [Node](https://nodejs.org) 20+, [pnpm](https://pnpm.io) and a
+[Rust](https://rustup.rs) toolchain. WebView2 ships with Windows 11 and with
+every up-to-date Windows 10.
+
+**On the typeface.** The design frame this is drawn from is set in SF Pro, which
+Windows does not have. Nook asks for [Inter](https://rsms.me/inter/) first and
+falls back to Segoe UI Variable, which every Windows 11 machine already has.
+Installing Inter gets you the frame's exact texture; not installing it costs you
+nothing but a slightly different `g`.
+
 ## Documentation
 
 - [**How it works**](docs/how-it-works.md) — what it reads, how the window is
-  only where the notch is, why one number sets every size.
+  only where the notch is, why one number sets every size, and how it gets out
+  of the way of a full-screen game.
 - [**The honest caveats**](docs/caveats.md) — the endpoint is not a published
   API, how rate limits are handled, and how a session's terminal is found.
 - [**The design frame**](docs/design/README.md) — what every measurement is
@@ -146,8 +146,9 @@ The session marks are Claude Code's own spinner glyphs, extracted from Segoe UI
 Symbol by [`scripts/extract-spinner.mjs`](scripts/extract-spinner.mjs) rather
 than redrawn.
 
-The screenshots above are generated from the real components against invented
-data — see [`scripts/shots`](scripts/shots/README.md).
+Every image above — the banner included — is generated from the real components
+against invented data rather than photographed. See
+[`scripts/shots`](scripts/shots/README.md).
 
 ## Licence
 
