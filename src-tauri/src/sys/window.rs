@@ -101,6 +101,11 @@ pub fn make_non_activating(window: HWND) -> bool {
 /// slow heartbeat, which is the only thing that also covers a window that
 /// takes the band later in the session.
 ///
+/// The heartbeat is not unconditional. Re-ordering the band is exactly what
+/// drops a game out of exclusive full-screen, so it is skipped while anything
+/// is full-screen — see `sys::foreground`, which is the one case where making
+/// this call is the bug rather than the fix.
+///
 /// Asynchronous, because this is called from the pointer thread and the
 /// ordinary form of the call waits on the window's own thread — a webview busy
 /// with a frame would otherwise stall the cursor poll behind it.

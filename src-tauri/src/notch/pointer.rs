@@ -16,6 +16,15 @@
 //! process in the input path of every mouse message on the desktop, and a slow
 //! frame there stutters the whole system's cursor. `GetCursorPos` at 30 Hz is
 //! a few microseconds of work and cannot affect anything else.
+//!
+//! Both of those assume the desktop is being used as a desktop. A full-screen
+//! application is the case where neither assumption holds — the rectangle is
+//! over something that has asked for the whole display, and the cursor inside
+//! it belongs to that application rather than to a pointer. So the same poll
+//! asks who owns the screen, and when the answer is not "nobody" the notch
+//! stands down: no zone, no region, and no re-claiming the top of the band.
+//! See `sys::foreground` for what each of those does to a game that is not
+//! stood down for.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -24,6 +33,7 @@ use std::time::Duration;
 use parking_lot::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::sys::foreground;
 use crate::sys::screen::{self, Rect};
 use crate::sys::window;
 
@@ -89,6 +99,8 @@ pub struct HotZone {
     chrome: Mutex<Option<Chrome>>,
     origin: Mutex<Origin>,
     inside: AtomicBool,
+    /// Set while a full-screen application has the notch's screen to itself.
+    screen_owned: AtomicBool,
 }
 
 impl HotZone {
@@ -114,11 +126,38 @@ impl HotZone {
         });
     }
 
+    /// Told by the poll when a full-screen application takes the notch's
+    /// screen, or hands it back. Answers whether that was news.
+    fn set_screen_owned(&self, owned: bool) -> bool {
+        self.screen_owned.swap(owned, Ordering::Relaxed) != owned
+    }
+
+    /// A point on the screen the notch calls home, for telling a game
+    /// full-screen on this display from one full-screen on another.
+    ///
+    /// The window's own top-left corner: the window is pinned to the working
+    /// area of the primary monitor, so its corner is on that monitor whether or
+    /// not the webview has yet reported a shape to draw inside it.
+    fn home(&self) -> (i32, i32) {
+        let origin = *self.origin.lock();
+        (origin.x, origin.y)
+    }
+
     /// The zone in coordinates relative to the window's own top-left corner —
     /// which is what a window region is measured in.
     ///
     /// `margin` is in CSS pixels, and is scaled along with everything else.
+    ///
+    /// `None` while a full-screen application owns the notch's screen. That is
+    /// the single place standing down is expressed, and everything downstream
+    /// reads it without knowing why: the hover test finds no rectangle to be
+    /// inside of, and the region falls back to the empty one it is cut to
+    /// before the first frame — so the notch is neither reachable nor drawn
+    /// until the screen is handed back.
     pub fn window_rect(&self, margin: f64) -> Option<Rect> {
+        if self.screen_owned.load(Ordering::Relaxed) {
+            return None;
+        }
         let chrome = (*self.chrome.lock())?;
         let scale = self.origin.lock().scale;
 
@@ -215,11 +254,36 @@ pub fn watch(app: AppHandle, zone: Arc<HotZone>) {
             loop {
                 std::thread::sleep(POLL_INTERVAL);
 
-                if last_raise.elapsed() >= RAISE_EVERY {
+                // Asked before anything else, because it decides everything
+                // else. A full-screen window on another display still stops the
+                // heartbeat — the claim re-orders the whole always-on-top band,
+                // not one monitor's share of it — but only one on this display
+                // takes the zone away.
+                let fullscreen = foreground::fullscreen_monitor();
+                let (home_x, home_y) = zone.home();
+                let ours = fullscreen.is_some_and(|screen| screen.contains(home_x, home_y));
+
+                if zone.set_screen_owned(ours) {
+                    tracing::debug!(ours, "a full-screen application took or gave back a screen");
+                    // The region is cut from the zone, and the zone has just
+                    // vanished or come back. Re-cut now rather than waiting for
+                    // the next thing that happens to move the notch: until it
+                    // is, a click on where the notch was still lands on it.
+                    apply_region(&app, &zone);
+                }
+
+                // The heartbeat, and the one thing that must not happen during
+                // a game. `last_raise` is deliberately left un-advanced while
+                // it is skipped, so the first tick after the game exits raises
+                // at once instead of up to two seconds later.
+                if fullscreen.is_none() && last_raise.elapsed() >= RAISE_EVERY {
                     last_raise = std::time::Instant::now();
                     raise(&app);
                 }
 
+                // Not skipped when stood down: `holds` is false with no zone to
+                // hold anything, so a panel that was open when the game took the
+                // screen is folded away by the ordinary path below.
                 let Some((x, y)) = screen::cursor_position() else {
                     continue;
                 };
@@ -324,5 +388,47 @@ mod tests {
         // Level with the notch but a comfortable window's-sidebar away from
         // it: the notch has no business opening here.
         assert!(!zone_at(280.0).holds(90, 380, false));
+    }
+
+    #[test]
+    fn a_full_screen_application_takes_the_whole_zone_away() {
+        let zone = zone_at(280.0);
+        assert!(zone.holds(10, 380, false));
+
+        zone.set_screen_owned(true);
+
+        // No rectangle at all, which is both halves of standing down: a cursor
+        // a game has parked on the screen edge is not a pointer on the notch,
+        // and `apply_region` falls back to cutting the window to nothing, so
+        // the click that cursor is about to make reaches the game.
+        assert!(zone.window_rect(EXIT_MARGIN).is_none());
+        assert!(!zone.holds(10, 380, true));
+
+        // And all of it comes back the moment the game gives the screen up.
+        zone.set_screen_owned(false);
+        assert!(zone.holds(10, 380, false));
+    }
+
+    #[test]
+    fn the_screen_changing_hands_is_news_once_and_not_thirty_times_a_second() {
+        let zone = zone_at(280.0);
+        assert!(zone.set_screen_owned(true));
+        assert!(!zone.set_screen_owned(true));
+        assert!(zone.set_screen_owned(false));
+        assert!(!zone.set_screen_owned(false));
+    }
+
+    #[test]
+    fn the_notch_knows_which_display_it_is_on() {
+        // What a full-screen window's monitor is tested against: a game filling
+        // a second display to the right holds no point of this one.
+        let second_display = Rect {
+            left: 1920,
+            top: 0,
+            right: 3840,
+            bottom: 1080,
+        };
+        let (x, y) = zone_at(280.0).home();
+        assert!(!second_display.contains(x, y));
     }
 }

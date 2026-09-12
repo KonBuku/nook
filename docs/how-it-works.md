@@ -90,7 +90,49 @@ Windows ranks topmost windows among themselves by who claimed the band last.
 At login everything else that starts with the session claims it after Nook
 does, because Nook is up before the desktop is. So the claim is re-made: when
 the window is placed, on a two-second heartbeat, and on the way into the hot
-zone — so the panel never unfolds underneath something.
+zone — so the panel never unfolds underneath something. With one exception,
+which is the next section.
+
+## Getting out of the way of a full-screen application
+
+Everything above assumes the desktop is being used as a desktop. A game is the
+case where it is not, and both halves of the notch are wrong there in their own
+way.
+
+The heartbeat evicts it. `SetWindowPos(HWND_TOPMOST)` from any process
+re-orders the whole always-on-top band, and a window arriving above a display
+an exclusive full-screen swap chain owns is exactly the event that makes
+Windows take that display back off it: the game drops to windowed or minimises,
+then re-acquires a moment later. Every two seconds. It is not the notch being
+*drawn* that does it — it is the claim being re-made.
+
+And the cursor is not the pointer. A game that captures the mouse reads raw
+input and leaves the system cursor parked wherever Windows last put it, often
+against a screen edge, because that is where a clipped cursor ends up.
+`GetCursorPos` reports that as happily as a real position, so aiming in-game
+reads as a pointer sitting on the notch: the panel unfolds over the game, and
+the region under it swallows the next click instead of letting the game shoot
+with it.
+
+So the same 30 Hz poll asks first who owns the screen. Two things are checked,
+because neither is enough alone. The foreground window's bounds against its
+monitor's *full* bounds, which is most of what separates a full-screen window
+from a merely maximised one: a maximised window stops at the taskbar, and even
+an auto-hidden taskbar keeps a sliver of the display to be revealed from. And
+whether that window still has a title bar, because a display with no taskbar on
+it — any second monitor with "show taskbar on all displays" switched off —
+leaves no sliver, and a maximised browser there covers the monitor exactly.
+Going full-screen means giving the frame up, so a window still wearing its
+caption has not asked for the display however large somebody has dragged it.
+
+When the answer is not "nobody", the notch stands down: the hot zone
+stops existing, which takes the region and the hover test with it in one move,
+and the heartbeat is skipped. A full-screen window on *another* display stops
+the heartbeat too — the band it re-orders is the desktop's, not one monitor's —
+but leaves the notch on this one reachable.
+
+The moment the game gives the screen back, the next tick raises and re-cuts the
+region, so coming out of a game is not a notch that stays missing.
 
 ## The window never takes focus
 
