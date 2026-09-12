@@ -1,6 +1,6 @@
 [package]
 name = "nook"
-version = "0.1.0"
+version = "0.1.1"
 description = "A notch for Windows that shows your Claude usage and every live Claude Code session"
 authors = ["Nook contributors"]
 license = "MIT"
