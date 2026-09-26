@@ -24,6 +24,19 @@ export const Layout = {
   pillDepth: px(26),
   pillLength: px(210),
 
+  // ── The grip ───────────────────────────────────────────────────────────
+  // Not in the frame either — the design has no way to move the notch.
+  //
+  // Three dots rather than a bar. A three-pixel bar standing upright against
+  // the right edge of a scrolling panel is a scrollbar somebody forgot to
+  // style, however it was meant; dots are the one mark that says "carry me"
+  // and nothing else. Sized against the panel padding they sit in, with a
+  // reach above and below that makes the whole thing a target a pointer can
+  // land on — the dots themselves are far too small to aim at.
+  gripDot: px(10),
+  gripDotGap: px(13),
+  gripReach: px(30),
+
   // ── The ring ───────────────────────────────────────────────────────────
   ringDiameter: px(117), // 44pt, the design spec's anchor
   trackStroke: px(15.5),

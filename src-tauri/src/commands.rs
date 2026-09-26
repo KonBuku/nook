@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::app::Nook;
 use crate::model::{Placement, Preferences, Session, UsageSnapshot};
@@ -90,8 +90,37 @@ pub fn report_chrome(
     height: f64,
     center_y: f64,
 ) {
-    nook.hot_zone.set_chrome(width, height, center_y);
+    nook.hot_zone.set_painted(width, height, center_y);
     notch::pointer::apply_region(&app, &nook.hot_zone);
+}
+
+/// The webview telling us how big the notch is *at rest* — the straight body of
+/// the closed shape, which is what a pointer has to touch to open it.
+///
+/// Separate from `report_chrome`, and reported on its own schedule: this one
+/// follows the shape immediately in both directions, where what is painted
+/// lags on the way down so the region never clips a panel still folding away.
+/// `HotZone` says why the two cannot be one number.
+#[tauri::command]
+pub fn report_reach(nook: State<'_, Arc<Nook>>, width: f64, height: f64, center_y: f64) {
+    nook.hot_zone.set_reach(width, height, center_y);
+}
+
+/// The grip has been taken: the notch is being dragged along its edge.
+///
+/// Only the press is reported. Everything after it — following the cursor,
+/// noticing the button come back up, writing down where the notch ended — is
+/// the pointer poll's, because the webview stops seeing a pointer the moment
+/// it leaves the window's region. See `notch::pointer::carry`.
+///
+/// The page is told back, because it has to stop animating for the duration: a
+/// spring is the right way for the notch to travel when it opens and exactly
+/// the wrong way for it to follow a pointer, which it is supposed to be nailed
+/// to.
+#[tauri::command]
+pub fn begin_drag(app: AppHandle, nook: State<'_, Arc<Nook>>) {
+    nook.hot_zone.begin_drag(nook.anchor());
+    let _ = app.emit("nook://drag", true);
 }
 
 #[tauri::command]

@@ -28,6 +28,12 @@ pub struct Nook {
     sessions: Mutex<Vec<Session>>,
     placement: Mutex<Placement>,
 
+    /// Where the notch sits, which is not always what is on disk: a drag moves
+    /// this every frame and writes the preference once, when the grip is let
+    /// go. Everything that places the window reads it rather than the
+    /// preference, so there is one answer to "where is the notch" and not two.
+    anchor: Mutex<f64>,
+
     /// Rung when someone asks for a fetch now — the tray's Refresh, or a click
     /// on the ring. Wakes the poll loop out of its sleep rather than starting a
     /// second fetch beside it, so two clicks are still one request.
@@ -38,6 +44,7 @@ impl Nook {
     pub fn new() -> Self {
         let store = Store::load();
         let cache = store.cache();
+        let anchor = store.preferences().anchor_fraction;
         let credentials = Arc::new(CredentialStore::new());
 
         // The last good reading, shown dated until the first fetch lands, so a
@@ -55,6 +62,7 @@ impl Nook {
                 window_width: 0.0,
                 window_height: 0.0,
             }),
+            anchor: Mutex::new(anchor),
             refresh: Notify::new(),
         }
     }
@@ -73,6 +81,19 @@ impl Nook {
 
     pub fn set_placement(&self, placement: Placement) {
         *self.placement.lock() = placement;
+    }
+
+    pub fn anchor(&self) -> f64 {
+        *self.anchor.lock()
+    }
+
+    /// Move the notch. Answers whether that was a change, so a drag holding
+    /// still does not re-place the window thirty times a second.
+    pub fn set_anchor(&self, anchor: f64) -> bool {
+        let mut held = self.anchor.lock();
+        let moved = *held != anchor;
+        *held = anchor;
+        moved
     }
 
     pub fn preferences(&self) -> Preferences {

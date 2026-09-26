@@ -1,15 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
 import {
-  Layout,
-  closedLength,
-  flareInset,
-  panelHeaderHeight,
-  sessionDividerHeight,
-  sessionsHeight,
-  shapeLength,
-} from "~/design/layout";
-import { UNFOLD_SECONDS } from "~/design/motion";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+
+import { shapesFor, type Shape, type Shapes } from "~/design/shapes";
 import { useJustFinished } from "~/features/sessions/activity";
 import { headlineOf, statusMessage } from "~/features/usage/status";
 import { api } from "~/ipc/bindings";
@@ -17,15 +15,13 @@ import type { Session } from "~/ipc/types";
 import { ClosedContent, OpenContent, type ContentProps } from "~/notch/NotchContent";
 import { RingSlot } from "~/notch/RingSlot";
 import { activityOf } from "~/features/sessions/activity";
-import { NotchShell, type Shape } from "~/notch/NotchShell";
-import { useNook, useNow, usePointerInside } from "./useNook";
-
-/** Clear space between the panel and the top or bottom of the window. */
-const EDGE_MARGIN = 10;
+import { NotchShell } from "~/notch/NotchShell";
+import { useDragging, useNook, useNow, usePointerInside } from "./useNook";
 
 export function App() {
   const { usage, sessions, preferences, placement, toggleSignal } = useNook();
   const pointerInside = usePointerInside();
+  const dragging = useDragging();
   const [pinned, setPinned] = useState(false);
   const [isRefreshing, setRefreshing] = useState(false);
 
@@ -61,7 +57,8 @@ export function App() {
   });
 
   const shape = isOpen ? shapes.open : shapes.closed;
-  useReportChrome(shape, isOpen, ready);
+  const onPaint = useReportPainted();
+  useReportReach(shapes.closed, ready);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -77,6 +74,16 @@ export function App() {
     void api.focusSession(session.pid);
   }, []);
 
+  // Only the press is ours. Following the cursor and noticing the button come
+  // back up both happen in Rust, because the page stops receiving the pointer
+  // the moment it leaves the notch — the window is clipped to a region, and
+  // that is enforced below the browser.
+  const onGrab = useCallback((event: ReactPointerEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    void api.beginDrag();
+  }, []);
+
   const content: ContentProps = {
     usage,
     sessions,
@@ -86,6 +93,7 @@ export function App() {
     sessionListHeight: shapes.sessionListHeight,
     onRefresh,
     onOpenSession,
+    onGrab,
   };
 
   if (!ready) return null;
@@ -96,6 +104,8 @@ export function App() {
     <NotchShell
       shape={shape}
       isOpen={isOpen}
+      dragging={dragging}
+      onPaint={onPaint}
       closedSize={shapes.closed}
       openSize={shapes.open}
       // The pill draws nothing: it is a handle, a tenth of the ring's width,
@@ -118,25 +128,7 @@ export function App() {
   );
 }
 
-export interface ShapeInputs {
-  usage: ReturnType<typeof useNook>["usage"];
-  sessionCount: number;
-  hasStatusLine: boolean;
-  resting: "ring" | "pill";
-  anchorY: number;
-  windowHeight: number;
-}
-
-/**
- * How big the notch is, closed and open, and what the session list gets.
- *
- * Budgeted rather than measured, for the same reason Codenotch budgets its
- * card: the shape animates to a height, and a height that arrives from a
- * `ResizeObserver` one frame after the animation starts makes the notch lurch.
- * Every part of the panel above the list is a fixed number of line boxes, so
- * the sum is exact — and the list, which is the one thing that is not, is
- * given the remainder and made to scroll.
- */
+/** The memo over `shapesFor`. The arithmetic itself lives in `design/shapes`. */
 export function useShapes({
   usage,
   sessionCount,
@@ -144,85 +136,94 @@ export function useShapes({
   resting,
   anchorY,
   windowHeight,
-}: ShapeInputs) {
-  return useMemo(() => {
-    // What the straight part of the shape can be, once the window's own margin
-    // and the two flares have taken their share.
-    const available = Math.max(0, windowHeight - 2 * EDGE_MARGIN - 2 * flareInset);
-
-    const closedContent =
-      resting === "pill" ? Layout.pillLength : closedLength(sessionCount > 0);
-    const closed: Shape = {
-      width: resting === "pill" ? Layout.pillDepth : Layout.bodyDepth,
-      height: shapeLength(closedContent),
-      contentHeight: closedContent,
-      centerY: anchorY,
-    };
-
-    const header = panelHeaderHeight(usage.windows.length, hasStatusLine);
-    const divider = sessionCount > 0 ? sessionDividerHeight : 0;
-    const wanted = header + divider + sessionsHeight(sessionCount);
-
-    const openContent = Math.min(wanted, available);
-    // Whatever is left once everything with a fixed height has had its share.
-    // The list is the one part that is not a known number of line boxes, so it
-    // takes the remainder and scrolls rather than growing the panel past the
-    // screen.
-    const sessionListHeight = Math.max(0, openContent - header - divider);
-
-    const openHeight = shapeLength(openContent);
-    const open: Shape = {
-      width: Layout.panelWidth,
-      height: openHeight,
-      contentHeight: openContent,
-      centerY: clamp(
-        anchorY,
-        EDGE_MARGIN + openHeight / 2,
-        windowHeight - EDGE_MARGIN - openHeight / 2,
-      ),
-    };
-
-    return { closed, open, sessionListHeight };
-  }, [usage.windows.length, sessionCount, hasStatusLine, resting, anchorY, windowHeight]);
+}: {
+  usage: ReturnType<typeof useNook>["usage"];
+  sessionCount: number;
+  hasStatusLine: boolean;
+  resting: "ring" | "pill";
+  anchorY: number;
+  windowHeight: number;
+}): Shapes {
+  const windowCount = usage.windows.length;
+  return useMemo(
+    () =>
+      shapesFor({ windowCount, sessionCount, hasStatusLine, resting, anchorY, windowHeight }),
+    [windowCount, sessionCount, hasStatusLine, resting, anchorY, windowHeight],
+  );
 }
 
 /**
- * Tell the Rust side how big the chrome is, so what is reachable matches what
- * is drawn.
+ * Tell the Rust side what is on screen, so the region it cuts the window to
+ * never clips the shape inside it.
  *
- * Growing is reported at once and shrinking only after the animation has
- * finished, so the hot zone is never smaller than the shape inside it. The
- * other way round, a pointer resting on the panel would fall outside the zone
- * the instant it started closing — and the notch would snap shut under a
- * pointer that had not moved.
+ * Driven by the springs the shape rides rather than by the target it is heading
+ * for, and that is the whole of it: between one target and the next there is a
+ * travelling object that is at neither, and a region cut to either end saws a
+ * piece off whatever is in the middle.
+ *
+ * This replaced a scheme that reported the two ends and tried to cover the
+ * journey — grow at once, shrink once the spring should have landed. Every
+ * failure it had was a guess about the middle that turned out wrong: it watched
+ * the width and the height but not where the shape's centre was, so travel that
+ * was purely a move went unreported until the timer fired half a second later;
+ * and the rectangle it held meanwhile spanned both ends at once, which is a
+ * band of window that swallows clicks while nothing is drawn in it.
+ *
+ * What makes reporting every frame affordable is that "every frame" means every
+ * frame *the shape moves*, which is a few hundred milliseconds at a time and
+ * nothing at all in between. A drag away from the screen's ends moves the
+ * window, not the shape, and reports nothing. Whole pixels, because the region
+ * is measured in them, and the rounding is what keeps three motion values
+ * changing in the same frame down to one call.
+ *
+ * The margin the region is grown by covers the rest: a frame of travel, and the
+ * command's own trip across the IPC.
  */
-function useReportChrome(shape: Shape, isOpen: boolean, ready: boolean) {
-  const reported = useRef<Shape | null>(null);
+function useReportPainted() {
+  const sent = useRef<{ width: number; height: number; centerY: number } | null>(null);
 
-  useEffect(() => {
-    // Not before the placement has arrived. The shape derived from a window of
-    // no height is centred on the top of the screen rather than on the notch,
-    // and reporting it hands Rust a hot zone a third of a screen away from
-    // anything drawn — long enough for a pointer resting there to open a notch
-    // it was nowhere near.
-    if (!ready) return;
-
-    const previous = reported.current;
-    const grew = !previous || shape.width > previous.width || shape.height > previous.height;
-
-    const report = () => {
-      reported.current = shape;
-      void api.reportChrome(shape.width, shape.height, shape.centerY);
+  return useCallback((width: number, height: number, top: number) => {
+    const next = {
+      width: Math.round(width),
+      height: Math.round(height),
+      centerY: Math.round(top + height / 2),
     };
 
-    if (grew) {
-      report();
+    const previous = sent.current;
+    if (
+      previous &&
+      previous.width === next.width &&
+      previous.height === next.height &&
+      previous.centerY === next.centerY
+    ) {
       return;
     }
 
-    const settle = window.setTimeout(report, UNFOLD_SECONDS * 1000 + 60);
-    return () => window.clearTimeout(settle);
-  }, [shape.width, shape.height, shape.centerY, isOpen, ready]);
+    sent.current = next;
+    void api.reportChrome(next.width, next.height, next.centerY);
+  }, []);
+}
+
+/**
+ * Tell the Rust side how big the notch is at rest.
+ *
+ * This is what a pointer has to touch to open the notch, and it is a different
+ * rectangle from the one above on a different schedule. Reported the instant it
+ * changes, in both directions: it describes where the notch *will* be, so there
+ * is no animation for it to wait out — and waiting is precisely what made
+ * walking back towards the screen edge reopen a panel that had just closed.
+ *
+ * `contentHeight` rather than `height`, because the flares are not somewhere
+ * anyone can aim. The silhouette curves concavely back to the screen edge over
+ * a flare radius at each end, so the ends of its bounding box hold nothing but
+ * a sliver against the very edge — and a hot zone cut to the box opened the
+ * notch from a pointer with visibly nothing under it.
+ */
+function useReportReach(resting: Shape, ready: boolean) {
+  useEffect(() => {
+    if (!ready) return;
+    void api.reportReach(resting.width, resting.contentHeight, resting.centerY);
+  }, [resting.width, resting.contentHeight, resting.centerY, ready]);
 }
 
 /**
@@ -265,9 +266,3 @@ function useHotkeyToggle(
   // get one back would cost the first click on every visit and lose the race
   // to raise the terminal that click asked for. The chord is the way out.
 }
-
-const clamp = (value: number, low: number, high: number): number =>
-  // `low` wins when the two cross, which happens when the panel is taller than
-  // the window: better pinned to the top and clipped at the bottom than the
-  // other way round, since the title is the part you cannot lose.
-  Math.max(low, Math.min(value, Math.max(low, high)));

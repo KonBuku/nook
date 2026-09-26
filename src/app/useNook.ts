@@ -108,3 +108,22 @@ export function usePointerInside(): boolean {
 
   return inside;
 }
+
+/**
+ * Whether the notch is being carried up or down its edge right now.
+ *
+ * From Rust for the same reason the pointer is: the press lands on the grip,
+ * but everything after it happens outside the window's region, where the page
+ * receives nothing. While this is true the notch stops animating and follows
+ * the cursor exactly.
+ */
+export function useDragging(): boolean {
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    const subscription = events.onDrag(setDragging);
+    return () => void subscription.then((off) => off());
+  }, []);
+
+  return dragging;
+}

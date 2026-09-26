@@ -28,7 +28,7 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST,
-    SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
+    SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER,
     WS_EX_NOACTIVATE,
 };
 
@@ -126,8 +126,43 @@ pub fn raise_to_top(window: HWND) -> bool {
     }
 }
 
+/// Slide the window to `(x, y)`, and touch nothing else about it.
+///
+/// The drag path. Tauri's `set_position` would do, but it arrives beside a
+/// `set_size`, a restyle and a re-cut region in `place_window`, and during a
+/// drag none of those can have changed — only the anchor moved. Four round
+/// trips to the window's own thread per frame is most of what a dragged notch
+/// felt like.
+///
+/// Synchronous, unlike `raise_to_top`, and deliberately. The call waits on the
+/// window's thread, which paces the drag to the rate the compositor can
+/// actually present — where posting asynchronously at sixty frames a second
+/// would queue moves faster than they are drained and arrive as the same lag
+/// by a longer route. There is nothing else for the poll to be getting on with
+/// while a drag is in progress, so there is nothing for the wait to hold up.
+pub fn move_to(window: HWND, x: i32, y: i32) -> bool {
+    // SAFETY: our own top-level window; the size arguments are ignored under
+    // `SWP_NOSIZE`.
+    unsafe {
+        SetWindowPos(
+            window,
+            None,
+            x,
+            y,
+            0,
+            0,
+            SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+        )
+        .is_ok()
+    }
+}
+
 /// Confine the window to `rect`, given in coordinates relative to the window's
 /// own top-left corner. Everything outside it stops existing.
+///
+/// Measured from the window's own corner, which is why moving the window does
+/// not need this called again: the region travels with it. Only a change to the
+/// window's *size*, or to where the notch sits inside it, moves the rectangle.
 pub fn clip_to(window: HWND, left: i32, top: i32, right: i32, bottom: i32) -> bool {
     // SAFETY: the region is handed to `SetWindowRgn`, which takes ownership of
     // it on success; on failure it is deleted here, so neither path leaks a GDI

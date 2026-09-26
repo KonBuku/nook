@@ -57,12 +57,14 @@ function Notch({
     sessionListHeight: shapes.sessionListHeight,
     onRefresh: () => {},
     onOpenSession: () => {},
+    onGrab: () => {},
   };
 
   return (
     <NotchShell
       shape={open ? shapes.open : shapes.closed}
       isOpen={open}
+      dragging={false}
       closedSize={shapes.closed}
       openSize={shapes.open}
       closed={resting === "pill" ? null : <ClosedContent {...content} />}

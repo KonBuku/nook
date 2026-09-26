@@ -28,10 +28,20 @@ export const api = {
    */
   focusSession: (pid: number) => invoke<boolean>("focus_session", { pid }),
 
-  /** Tell the Rust side how tall the chrome currently is, so the pointer
-   *  hot zone matches what is actually drawn. */
+  /** Tell the Rust side how big the chrome currently is, so what is clickable
+   *  matches what is actually drawn. */
   reportChrome: (width: number, height: number, centerY: number) =>
     invoke<void>("report_chrome", { width, height, centerY }),
+
+  /** Tell it how big the notch is at rest, which is what has to be reached for
+   *  to open it. Not the same rectangle, and not on the same schedule — see
+   *  `HotZone` on the Rust side. */
+  reportReach: (width: number, height: number, centerY: number) =>
+    invoke<void>("report_reach", { width, height, centerY }),
+
+  /** The grip has been pressed. Everything after the press is Rust's: the
+   *  webview stops seeing the pointer as soon as it leaves the notch. */
+  beginDrag: () => invoke<void>("begin_drag"),
 
   quit: () => invoke<void>("quit_app"),
 };
@@ -55,6 +65,16 @@ export const events = {
    */
   onPointer: (fn: (inside: boolean) => void): Promise<UnlistenFn> =>
     listen<boolean>("nook://pointer", (e) => fn(e.payload)),
+
+  /**
+   * The notch is being dragged, or has been let go.
+   *
+   * What the page does with it is stop animating. The shape rides springs, which
+   * is right for a notch unfolding under a pointer and wrong for one nailed to
+   * it — a 420ms spring chasing a dragged object *is* the lag.
+   */
+  onDrag: (fn: (dragging: boolean) => void): Promise<UnlistenFn> =>
+    listen<boolean>("nook://drag", (e) => fn(e.payload)),
 
   /** The global chord was pressed: open, and stay open until dismissed. */
   onToggle: (fn: () => void): Promise<UnlistenFn> =>

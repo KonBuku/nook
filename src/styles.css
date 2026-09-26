@@ -144,6 +144,49 @@ body {
   flex-direction: column;
 }
 
+/*
+ * The grip: three dots in the panel's right-hand padding, which is the only
+ * strip of the panel that holds nothing.
+ *
+ * The hit area is the whole strip, top to bottom of the dots plus a reach at
+ * each end — the dots are a few pixels across and nobody aims at those. A
+ * single upright bar was the first try and read as a scrollbar against a
+ * panel that scrolls; dots say "carry me" and cannot be mistaken for chrome.
+ */
+.grip {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.grip:active {
+  cursor: grabbing;
+}
+
+.grip-dots {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.grip-dot {
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  opacity: 0.45;
+  transition: opacity 140ms;
+}
+
+.grip:hover .grip-dot,
+.grip:active .grip-dot {
+  opacity: 1;
+}
+
 .panel-header {
   display: flex;
   align-items: center;

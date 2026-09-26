@@ -48,6 +48,8 @@ pub fn run() {
             commands::save_preferences,
             commands::focus_session,
             commands::report_chrome,
+            commands::report_reach,
+            commands::begin_drag,
             commands::quit_app,
         ])
         .setup(|app| {

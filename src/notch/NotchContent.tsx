@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import type { PointerEvent } from "react";
 
 import { Layout, Type, bodyLine, titleLine } from "~/design/layout";
 import { crossfade } from "~/design/motion";
@@ -19,6 +20,8 @@ export interface ContentProps {
   sessionListHeight: number;
   onRefresh: () => void;
   onOpenSession: (session: Session) => void;
+  /** The grip has been pressed: the notch is about to be dragged. */
+  onGrab: (event: PointerEvent) => void;
 }
 
 /**
@@ -68,6 +71,43 @@ export function ClosedContent({ usage, sessions }: ContentProps) {
 }
 
 /**
+ * The handle the notch is moved by.
+ *
+ * In the panel's own right-hand padding, because that strip is the one part of
+ * the panel that holds nothing — a grip anywhere else would either cover a
+ * reading or need room made for it. It appears with the panel and nowhere
+ * else: the closed notch is a ring and a number with no spare surface at all,
+ * and reaching for the notch is what opens it anyway, so the gesture is
+ * already "hover, then grab".
+ *
+ * Its own handle rather than dragging the panel itself. Every other thing in
+ * here is a button — the ring refreshes, a session row raises a terminal — and
+ * a press that might be either has to be told apart by how far it moved, which
+ * means a click is only recognised once it is too late to have felt instant.
+ */
+function Grip({ onGrab }: { onGrab: (event: PointerEvent) => void }) {
+  return (
+    <div
+      className="grip"
+      style={{ width: Layout.panelPadding, padding: `${Layout.gripReach}px 0` }}
+      onPointerDown={onGrab}
+      role="separator"
+      aria-label="Move the notch"
+    >
+      <div className="grip-dots" style={{ gap: Layout.gripDotGap }}>
+        {[0, 1, 2].map((dot) => (
+          <span
+            key={dot}
+            className="grip-dot"
+            style={{ width: Layout.gripDot, height: Layout.gripDot }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The open panel: the same ring, now beside a title, then every limit window,
  * then every live session under a rule that separates them — they answer
  * different questions.
@@ -80,12 +120,15 @@ export function OpenContent({
   sessionListHeight,
   onRefresh,
   onOpenSession,
+  onGrab,
 }: ContentProps) {
   const message = statusMessage(usage, now);
   const note = readingNote(usage, now);
 
   return (
     <div className="content panel" style={{ padding: Layout.panelPadding }}>
+      <Grip onGrab={onGrab} />
+
       <header className="panel-header" style={{ gap: Layout.headerGap }}>
         {/* The ring's place. It is drawn by `RingSlot`, which owns the one ring
             both layouts share. */}

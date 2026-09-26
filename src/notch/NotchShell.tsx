@@ -2,23 +2,10 @@ import { useTransform, useSpring, motion, type MotionValue } from "motion/react"
 import { useEffect, type ReactNode } from "react";
 
 import { Layout, flareInset } from "~/design/layout";
+import type { Shape } from "~/design/shapes";
 import { unfoldSpring } from "~/design/motion";
 import { Palette } from "~/design/palette";
 import { notchPath } from "~/design/notchPath";
-
-export interface Shape {
-  width: number;
-  /** The whole silhouette, flares included. */
-  height: number;
-  /**
-   * The straight part between the flares — the only part content can sit in.
-   * Always `height` less two flare radii; carried alongside rather than derived
-   * so the shape and the layout inside it are quoting one number.
-   */
-  contentHeight: number;
-  /** The chrome's vertical centre, from the top of the window. */
-  centerY: number;
-}
 
 /**
  * The notch's silhouette, and the two layouts that live inside it.
@@ -39,6 +26,8 @@ export interface Shape {
 export function NotchShell({
   shape,
   isOpen,
+  dragging,
+  onPaint,
   closed,
   open,
   ring,
@@ -47,6 +36,18 @@ export function NotchShell({
 }: {
   shape: Shape;
   isOpen: boolean;
+  /** Being carried along the edge: follow the cursor, do not animate. */
+  dragging: boolean;
+  /**
+   * Where the shape actually is, on every frame it moves.
+   *
+   * `top` rather than a centre, because that is what the springs hold. Called
+   * from the motion values themselves rather than from the target shape: the
+   * region cut around the notch has to follow what is *painted*, and between
+   * one target and the next there is a spring's worth of travel that is at
+   * neither of them.
+   */
+  onPaint?: (width: number, height: number, top: number) => void;
   closed: ReactNode;
   open: ReactNode;
   /** Drawn above both layouts, so it can move between them. */
@@ -61,10 +62,39 @@ export function NotchShell({
   const y = useSpring(shape.centerY - shape.height / 2, unfoldSpring);
 
   useEffect(() => {
+    const top = shape.centerY - shape.height / 2;
+
+    // `jump` while a drag is in progress, which sets the value and abandons the
+    // animation rather than starting one towards it.
+    //
+    // The spring is what makes an opening notch feel like an object. Under a
+    // drag it is the opposite: the thing is supposed to be held, and a 420ms
+    // spring chasing the cursor renders that as the notch sloshing along
+    // behind it. Near the top or bottom of the screen it is worse still —
+    // there the window has run out of room and *all* of the travel is the
+    // notch moving inside it, so all of it is spring.
+    if (dragging) {
+      width.jump(shape.width);
+      height.jump(shape.height);
+      y.jump(top);
+      return;
+    }
+
     width.set(shape.width);
     height.set(shape.height);
-    y.set(shape.centerY - shape.height / 2);
-  }, [shape.width, shape.height, shape.centerY, width, height, y]);
+    y.set(top);
+  }, [shape.width, shape.height, shape.centerY, dragging, width, height, y]);
+
+  // Every frame the shape moves, and none where it does not. At rest this
+  // subscribes to three values that never fire; a drag away from the screen's
+  // ends moves the window rather than the shape, so it stays silent there too.
+  useEffect(() => {
+    if (!onPaint) return;
+    const push = () => onPaint(width.get(), height.get(), y.get());
+    push();
+    const stop = [width.on("change", push), height.on("change", push), y.on("change", push)];
+    return () => stop.forEach((off) => off());
+  }, [width, height, y, onPaint]);
 
   const path = useTransform<number, string>([width, height], (latest) =>
     notchPath({
@@ -75,13 +105,36 @@ export function NotchShell({
     }),
   );
 
+  // The same path again, as a clip for everything drawn inside the shape.
+  const clip = useTransform(path, (d) => `path("${d}")`);
+
   return (
     <motion.div className="chrome" style={{ width, height, y }}>
       <Silhouette width={width} height={height} path={path} />
 
-      {/* Clipped by the box, not by the path: everything inside is inset by the
-          panel's own padding, which keeps it clear of the flares anyway. */}
-      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+      {/*
+        Clipped to the silhouette, not to the box that holds it.
+
+        It used to clip to the box, on the reasoning that the panel's own
+        padding kept its contents clear of the flares anyway. That is true of
+        the shape at rest and false throughout the animation: the layout is
+        held at its *final* size while the box is still travelling, so early in
+        an unfold a full-height panel sits in a box a third of that tall and
+        hangs out of both ends — the title and the plan beside it, drawn in
+        mid-air above the notch for a fifth of a second on every hover.
+
+        Insetting by a flare at each end fixes that much and still leaves the
+        four rounded corners, where a bar reaches past the radius into nothing.
+        The path has no such gap between what it clips and what is painted:
+        it *is* what is painted, driven by the same two motion values, so there
+        is no size at which the two can disagree.
+
+        `overflow` as well, which costs nothing and bounds the layout for the
+        session list's own scrolling.
+      */}
+      <motion.div
+        style={{ position: "absolute", inset: 0, overflow: "hidden", clipPath: clip }}
+      >
         <Layer size={closedSize} visible={!isOpen}>
           {closed}
         </Layer>
@@ -93,7 +146,7 @@ export function NotchShell({
             top at every size — `contentHeight` is always `height` less two
             flares, so this offset never has to animate. */}
         <div style={{ position: "absolute", left: 0, top: flareInset }}>{ring}</div>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }
